@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Test output
+coverage/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Audit report
+audit-report.json
+
+# Terraform state and secrets
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+!*.example.tfvars
+
+# Operating system
+.DS_Store
+Thumbs.db
