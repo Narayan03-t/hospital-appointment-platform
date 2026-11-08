@@ -14,5 +14,11 @@ async function connectDatabase() {
   console.log('MongoDB connected successfully');
 }
 
-module.exports = connectDatabase;
+async function disconnectDatabase() {
+  await mongoose.disconnect();
+}
 
+module.exports = {
+  connectDatabase,
+  disconnectDatabase,
+};

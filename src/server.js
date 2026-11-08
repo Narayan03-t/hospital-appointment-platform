@@ -4,6 +4,11 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
+const { connectDatabase } = require('./config/database');
+const authRoutes = require('./routes/authRoutes');
+const doctorRoutes = require('./routes/doctorRoutes');
+const appointmentRoutes = require('./routes/appointmentRoutes');
+
 const app = express();
 
 app.use(helmet());
@@ -20,9 +25,12 @@ app.use(
 );
 
 app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'healthy',
+  const databaseConnected = require('mongoose').connection.readyState === 1;
+
+  res.status(databaseConnected ? 200 : 503).json({
+    status: databaseConnected ? 'healthy' : 'unhealthy',
     service: 'hospital-appointment-platform',
+    database: databaseConnected ? 'connected' : 'disconnected',
     timestamp: new Date().toISOString(),
   });
 });
@@ -34,11 +42,75 @@ app.get('/', (req, res) => {
   });
 });
 
+app.use('/api/auth', authRoutes);
+app.use('/api/doctors', doctorRoutes);
+app.use('/api/appointments', appointmentRoutes);
+
+app.use((err, req, res, next) => {
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  const statusCode = err.statusCode || 500;
+
+  if (statusCode >= 500) {
+    console.error('Request failed:', err.message);
+  }
+
+  return res.status(statusCode).json({
+    error: statusCode >= 500
+      ? 'Internal server error'
+      : err.message,
+  });
+});
+
 const PORT = process.env.PORT || 3000;
+let server;
+
+async function startServer() {
+  await connectDatabase();
+
+  server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Hospital Appointment API running on port ${PORT}`);
+  });
+}
+
+async function shutdown() {
+  console.log('Shutting down Hospital Appointment API');
+
+  if (server) {
+    await new Promise((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve();
+        }
+      });
+    });
+  }
+
+  await require('mongoose').disconnect();
+}
 
 if (require.main === module) {
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Hospital Appointment API running on port ${PORT}`);
+  startServer().catch((error) => {
+    console.error('Application startup failed:', error.message);
+    process.exitCode = 1;
+  });
+
+  process.once('SIGTERM', () => {
+    shutdown().catch((error) => {
+      console.error('Shutdown failed:', error.message);
+      process.exitCode = 1;
+    });
+  });
+
+  process.once('SIGINT', () => {
+    shutdown().catch((error) => {
+      console.error('Shutdown failed:', error.message);
+      process.exitCode = 1;
+    });
   });
 }
 
