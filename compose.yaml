@@ -5,7 +5,7 @@ services:
     environment:
       MONGO_INITDB_DATABASE: hospital_appointments
     ports:
-      - "127.0.0.1:27017:27017"
+      - "127.0.0.1:27018:27017"
     volumes:
       - mongodb_data:/data/db
     networks:
