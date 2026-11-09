@@ -15,6 +15,25 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json({ limit: '10kb' }));
 
+
+app.use((req, res, next) => {
+  const startTime = Date.now();
+
+  res.on('finish', () => {
+    console.log(JSON.stringify({
+      level: 'info',
+      event: 'http_request',
+      method: req.method,
+      path: req.path,
+      statusCode: res.statusCode,
+      durationMs: Date.now() - startTime,
+      timestamp: new Date().toISOString(),
+    }));
+  });
+
+  next();
+});
+
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,
