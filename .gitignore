@@ -27,3 +27,6 @@ audit-report.json
 # Operating system
 .DS_Store
 Thumbs.db
+
+# Local HTTPS certificates and private keys
+nginx/certs/*

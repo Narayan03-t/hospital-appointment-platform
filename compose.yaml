@@ -34,8 +34,8 @@ services:
       PORT: 3000
       MONGODB_URI: mongodb://mongodb:27017/hospital_appointments
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env}
-    ports:
-      - "127.0.0.1:3000:3000"
+    expose:
+      - "3000"
     depends_on:
       mongodb:
         condition: service_healthy
@@ -54,6 +54,19 @@ services:
       retries: 3
       start_period: 15s
 
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - hospital_network
 networks:
   hospital_network:
     driver: bridge
