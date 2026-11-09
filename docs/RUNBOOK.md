@@ -198,3 +198,12 @@ Before submission, collect:
 - [ ] Final architecture diagram and README
 - [ ] Three-to-five-minute demonstration video
 - [ ] Verified repository, workflow, and evidence links
+
+### Verified Appointment Conflict Test — 2026-11-09
+
+- The MongoDB unique partial index `doctor_1_appointmentTime_1` was verified on the running database. It enforces uniqueness on `doctor` and `appointmentTime` for confirmed appointments.
+- A temporary confirmed appointment was inserted successfully for synthetic data.
+- A second confirmed appointment for the same doctor and time, using a different synthetic patient, was rejected with MongoDB error `E11000 duplicate key`.
+- The temporary test appointment was deleted successfully.
+- Cleanup verification returned `temporaryTestRecords: 0` and `totalAppointments: 3`. The three original appointments were preserved.
+- Scope limitation: this verifies the real database uniqueness constraint, not simultaneous HTTP booking requests. A concurrent API-level test remains unverified.
