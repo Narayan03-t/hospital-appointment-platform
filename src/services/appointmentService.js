@@ -104,8 +104,62 @@ async function cancelAppointment({ appointmentId, patientId }) {
   return appointment;
 }
 
+async function rescheduleAppointment({
+  appointmentId,
+  patientId,
+  appointmentTime,
+}) {
+  if (
+    !mongoose.isValidObjectId(appointmentId) ||
+    !mongoose.isValidObjectId(patientId)
+  ) {
+    throw createError('Invalid appointment or patient ID', 400);
+  }
+
+  const time = new Date(appointmentTime);
+
+  if (
+    typeof appointmentTime !== 'string' ||
+    !Number.isFinite(time.getTime()) ||
+    time <= new Date()
+  ) {
+    throw createError('Appointment time must be a valid future date', 400);
+  }
+
+  try {
+    const appointment = await Appointment.findOneAndUpdate(
+      {
+        _id: appointmentId,
+        patient: patientId,
+        status: 'confirmed',
+      },
+      { $set: { appointmentTime: time } },
+      { new: true, runValidators: true },
+    );
+
+    if (!appointment) {
+      throw createError(
+        'Confirmed appointment not found for this patient',
+        404,
+      );
+    }
+
+    return appointment;
+  } catch (error) {
+    if (error.code === 11000) {
+      throw createError(
+        'This doctor already has a confirmed appointment at that time',
+        409,
+      );
+    }
+
+    throw error;
+  }
+}
+
 module.exports = {
   bookAppointment,
   listPatientAppointments,
   cancelAppointment,
+  rescheduleAppointment,
 };

@@ -3,6 +3,7 @@ const {
   bookAppointment,
   listPatientAppointments,
   cancelAppointment,
+  rescheduleAppointment,
 } = require('../services/appointmentService');
 const {
   authenticate,
@@ -53,6 +54,23 @@ router.patch('/:id/cancel', async (req, res, next) => {
 
     return res.status(200).json({
       message: 'Appointment cancelled successfully',
+      appointment,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.patch('/:id/reschedule', async (req, res, next) => {
+  try {
+    const appointment = await rescheduleAppointment({
+      appointmentId: req.params.id,
+      patientId: req.user.sub,
+      appointmentTime: req.body.appointmentTime,
+    });
+
+    return res.status(200).json({
+      message: 'Appointment rescheduled successfully',
       appointment,
     });
   } catch (error) {
