@@ -30,3 +30,6 @@ Thumbs.db
 
 # Local HTTPS certificates and private keys
 nginx/certs/*
+
+# Local database backups — never commit
+backups/
