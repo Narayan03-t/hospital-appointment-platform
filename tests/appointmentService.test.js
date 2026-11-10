@@ -121,7 +121,11 @@ describe('bookAppointment', () => {
 
   test('creates a confirmed appointment for a valid patient and doctor', async () => {
     setupValidBooking();
-    const createdAppointment = { _id: appointmentId, status: 'confirmed' };
+    const createdAppointment = {
+      _id: appointmentId,
+      patient: patientId,
+      status: 'confirmed',
+    };
     Appointment.create.mockResolvedValue(createdAppointment);
 
     await expect(
@@ -177,7 +181,11 @@ describe('cancelAppointment', () => {
   });
 
   test('cancels only a confirmed appointment belonging to the patient', async () => {
-    const cancelledAppointment = { _id: appointmentId, status: 'cancelled' };
+    const cancelledAppointment = {
+      _id: appointmentId,
+      patient: patientId,
+      status: 'cancelled',
+    };
     Appointment.findOneAndUpdate.mockResolvedValue(cancelledAppointment);
 
     await expect(
@@ -236,6 +244,7 @@ describe('rescheduleAppointment', () => {
   test('reschedules a confirmed appointment belonging to the patient', async () => {
     const updatedAppointment = {
       _id: appointmentId,
+      patient: patientId,
       appointmentTime: new Date(futureTime),
       status: 'confirmed',
     };

@@ -3,6 +3,17 @@ const Appointment = require('../models/Appointment');
 const Doctor = require('../models/Doctor');
 const User = require('../models/User');
 
+function logAppointmentAudit(action, appointment) {
+  console.log(JSON.stringify({
+    level: 'info',
+    event: 'appointment_audit',
+    action,
+    appointmentId: String(appointment._id),
+    patientId: String(appointment.patient),
+    timestamp: new Date().toISOString(),
+  }));
+}
+
 function createError(message, statusCode) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -46,13 +57,16 @@ async function bookAppointment({
   }
 
   try {
-    return await Appointment.create({
+    const appointment = await Appointment.create({
       patient: patient._id,
       doctor: doctor._id,
       appointmentTime: time,
       reason,
       status: 'confirmed',
     });
+
+    logAppointmentAudit('appointment_booked', appointment);
+    return appointment;
   } catch (error) {
     if (error.code === 11000) {
       throw createError(
@@ -101,6 +115,7 @@ async function cancelAppointment({ appointmentId, patientId }) {
     );
   }
 
+  logAppointmentAudit('appointment_cancelled', appointment);
   return appointment;
 }
 
@@ -144,6 +159,7 @@ async function rescheduleAppointment({
       );
     }
 
+    logAppointmentAudit('appointment_rescheduled', appointment);
     return appointment;
   } catch (error) {
     if (error.code === 11000) {
