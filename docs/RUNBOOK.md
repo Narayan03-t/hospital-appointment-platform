@@ -206,4 +206,7 @@ Before submission, collect:
 - A second confirmed appointment for the same doctor and time, using a different synthetic patient, was rejected with MongoDB error `E11000 duplicate key`.
 - The temporary test appointment was deleted successfully.
 - Cleanup verification returned `temporaryTestRecords: 0` and `totalAppointments: 3`. The three original appointments were preserved.
-- Scope limitation: this verifies the real database uniqueness constraint, not simultaneous HTTP booking requests. A concurrent API-level test remains unverified.
+- Concurrent API verification — 2026-11-12: `tests/appointmentConcurrency.test.js` sent two simultaneous authenticated HTTP booking requests for the same doctor and appointment time against the dedicated local MongoDB test database.
+- Expected and observed results: one request returned `201 Created`, the other returned `409 Conflict`, and exactly one confirmed appointment remained.
+- The test uses synthetic patient and doctor records and cleans up its test records. The dedicated test database is `hospital_appointments_concurrency_test`.
+- Local verification: all 4 Jest suites and all 24 tests passed. GitHub Actions verification is pending.
