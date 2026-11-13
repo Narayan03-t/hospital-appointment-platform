@@ -3,6 +3,7 @@ const Doctor = require('../src/models/Doctor');
 const User = require('../src/models/User');
 const {
   bookAppointment,
+  requestAppointment,
   cancelAppointment,
   rescheduleAppointment,
 } = require('../src/services/appointmentService');
@@ -18,6 +19,10 @@ jest.mock('../src/models/Doctor', () => ({
 
 jest.mock('../src/models/User', () => ({
   findById: jest.fn(),
+}));
+
+jest.mock('../src/models/Notification', () => ({
+  create: jest.fn(),
 }));
 
 const patientId = '507f1f77bcf86cd799439011';
@@ -54,6 +59,50 @@ describe('bookAppointment', () => {
     ).rejects.toMatchObject({ statusCode: 400 });
 
     expect(Appointment.create).not.toHaveBeenCalled();
+  });
+
+  describe('requestAppointment', () => {
+    test('creates a pending request with a trimmed reason', async () => {
+      setupValidBooking();
+      const pending = { _id: appointmentId, status: 'pending' };
+      Appointment.create.mockResolvedValue(pending);
+
+      await expect(
+        requestAppointment({
+          patientId,
+          doctorId,
+          appointmentTime: futureTime,
+          reason: '  New patient consultation  ',
+        }),
+      ).resolves.toBe(pending);
+
+      expect(Appointment.create).toHaveBeenCalledWith(expect.objectContaining({
+        status: 'pending',
+        reason: 'New patient consultation',
+      }));
+    });
+
+    test('rejects missing reasons and unavailable doctors', async () => {
+      setupValidBooking();
+      await expect(
+        requestAppointment({
+          patientId,
+          doctorId,
+          appointmentTime: futureTime,
+          reason: '',
+        }),
+      ).rejects.toMatchObject({ statusCode: 400 });
+
+      Doctor.findById.mockResolvedValue({ _id: doctorId, available: false });
+      await expect(
+        requestAppointment({
+          patientId,
+          doctorId,
+          appointmentTime: futureTime,
+          reason: 'Consultation',
+        }),
+      ).rejects.toMatchObject({ statusCode: 404 });
+    });
   });
 
   test('rejects an invalid or past appointment time', async () => {

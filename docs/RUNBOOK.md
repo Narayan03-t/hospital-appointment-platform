@@ -31,16 +31,16 @@ docker compose ps
 
 Wait for MongoDB and the API to report healthy. Confirm that Nginx is running.
 
-Verify the application:
+Verify the application through the published local HTTPS port:
 
 ```bash
-curl -k -i https://localhost/health
-curl -k -i https://localhost/api/doctors
+curl -k -i https://localhost:8443/health
+curl -k -i https://localhost:8443/api/doctors
 ```
 
 Expected result: the health endpoint returns HTTP 200 and reports a connected database.
 
-The `-k` flag bypasses certificate verification for the local self-signed certificate. It is for local testing only.
+Open `https://localhost:8443` in a browser to use the CareFlow frontend. The browser warning is expected because the local certificate is self-signed; accept it only for this local demonstration. The `-k` flag bypasses certificate verification for command-line local testing only.
 
 ## 4. Service Status and Logs
 
@@ -84,7 +84,7 @@ Verify recovery:
 
 ```bash
 docker compose ps
-curl -k -i https://localhost/health
+curl -k -i https://localhost:8443/health
 ```
 
 If health checks fail, inspect the API and MongoDB logs, verify the `.env` configuration, and confirm that MongoDB is healthy before restarting dependent services.
@@ -155,7 +155,7 @@ Do not restore over the active application database without a reviewed recovery 
 | HTTPS connection fails | Check Nginx logs, certificate files, and port 443 binding |
 | HTTP 401 | Verify that the request includes a valid bearer token |
 | HTTP 403 | Verify the authenticated user's role and endpoint permissions |
-| HTTP 409 during booking | Check whether the doctor already has a confirmed appointment at that time |
+| HTTP 409 during booking or approval | Check whether the doctor already has an approved or confirmed appointment at that time, or whether the requested approval time is not in the doctor's configured slots |
 | Container is stopped | Inspect logs and service status, then start it with Compose |
 
 ## 9. Rollback
@@ -177,8 +177,8 @@ Database changes may not be compatible with older application versions. Never as
 
 - Use synthetic patient and appointment records only.
 - Keep secrets in local environment configuration, never in Git.
-- Keep MongoDB bound to loopback for the current local deployment.
-- The API is accessible through Nginx on local HTTPS port 443.
+- Keep MongoDB internal to the Compose network for the current local deployment; the preserved override removes its host-port mapping.
+- The API and frontend are accessible through Nginx at `https://localhost:8443`; Nginx listens on container port 443 and publishes host port 8443.
 - The local TLS certificate is self-signed and not publicly trusted.
 - Validate configuration with `docker compose config --quiet`.
 - Record timestamps, commit IDs, test output, and backup checksums when collecting submission evidence.
@@ -197,9 +197,9 @@ Database changes may not be compatible with older application versions. Never as
 - [ ] Three-to-five-minute demonstration video
 - [ ] Verified repository, workflow, and evidence links
 
-### Verified Appointment Conflict Test — 2026-11-09
+### Verified Appointment Conflict Test — 2026-11-09 and 2026-11-12
 
-- The MongoDB unique partial index `doctor_1_appointmentTime_1` was verified on the running database. It enforces uniqueness on `doctor` and `appointmentTime` for confirmed appointments.
+- The legacy MongoDB index `doctor_1_appointmentTime_1` was preserved. The current index `doctor_active_appointment_slot` enforces uniqueness on `doctor` and `appointmentTime` for approved and confirmed appointments.
 - A temporary confirmed appointment was inserted successfully for synthetic data.
 - A second confirmed appointment for the same doctor and time, using a different synthetic patient, was rejected with MongoDB error `E11000 duplicate key`.
 - The temporary test appointment was deleted successfully.
@@ -207,4 +207,17 @@ Database changes may not be compatible with older application versions. Never as
 - Concurrent API verification — 2026-11-12: `tests/appointmentConcurrency.test.js` sent two simultaneous authenticated HTTP booking requests for the same doctor and appointment time against the dedicated local MongoDB test database.
 - Expected and observed results: one request returned `201 Created`, the other returned `409 Conflict`, and exactly one confirmed appointment remained.
 - The test uses synthetic patient and doctor records and cleans up its test records. The dedicated test database is `hospital_appointments_concurrency_test`.
-- Local verification: all 4 Jest suites and all 24 tests passed. GitHub Actions verification is pending.
+- Local verification: all 4 Jest suites and all 29 tests passed. Frontend lint and production build also passed. GitHub Actions status remains dependent on the workflow run for the submitted commit.
+
+## 12. CareFlow Role and Notification Checks
+
+Use synthetic accounts only when demonstrating the workflows:
+
+1. Register and log in as a patient at `https://localhost:8443`.
+2. Select an available doctor and submit a future appointment request with a reason.
+3. Log in with the linked doctor account, review the pending request, and approve or reject it. A rejection can include a reason.
+4. Return to the patient dashboard and verify the appointment status and persisted notification. Use the Notifications view to mark one or all notifications read.
+5. Log in as an admin and verify overview counts, doctor/patient search, account activation controls, and appointment reporting.
+6. Confirm that patient and doctor tokens receive HTTP 403 from `/api/admin/*`.
+
+The supported notification channel is in-app persistence. SMTP email delivery is not implemented.

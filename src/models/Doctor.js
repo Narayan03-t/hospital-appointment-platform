@@ -12,10 +12,23 @@ const doctorSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    phone: {
+      type: String,
+      trim: true,
+      maxlength: 30,
+    },
     available: {
       type: Boolean,
       default: true,
     },
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      index: true,
+    },
+    availableSlots: [{
+      type: Date,
+    }],
   },
   { timestamps: true },
 );

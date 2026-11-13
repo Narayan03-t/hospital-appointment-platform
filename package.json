@@ -12,7 +12,8 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "test:watch": "jest --watch",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "bootstrap:admin": "node scripts/bootstrapAdmin.js"
   },
   "keywords": [],
   "author": "",

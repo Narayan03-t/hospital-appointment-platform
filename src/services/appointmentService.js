@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Appointment = require('../models/Appointment');
 const Doctor = require('../models/Doctor');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 
 function logAppointmentAudit(action, appointment) {
   console.log(JSON.stringify({
@@ -44,7 +45,7 @@ async function bookAppointment({
   }
 
   const [patient, doctor] = await Promise.all([
-    User.findById(patientId).select('_id role'),
+    User.findById(patientId).select('_id role name'),
     Doctor.findById(doctorId),
   ]);
 
@@ -79,11 +80,57 @@ async function bookAppointment({
   }
 }
 
+async function requestAppointment({
+    patientId,
+    doctorId,
+    appointmentTime,
+    reason,
+  }) {
+    if (!mongoose.isValidObjectId(patientId) || !mongoose.isValidObjectId(doctorId)) {
+      throw createError('Invalid patient or doctor ID', 400);
+    }
+
+    const time = new Date(appointmentTime);
+    if (typeof appointmentTime !== 'string' || !Number.isFinite(time.getTime()) || time <= new Date()) {
+      throw createError('Appointment time must be a valid future date', 400);
+    }
+    if (typeof reason !== 'string' || !reason.trim()) {
+      throw createError('A reason is required', 400);
+    }
+
+    const [patient, doctor] = await Promise.all([
+      User.findById(patientId).select('_id role name'),
+      Doctor.findById(doctorId),
+    ]);
+    if (!patient || patient.role !== 'patient') {
+      throw createError('Patient not found', 404);
+    }
+    if (!doctor || !doctor.available) {
+      throw createError('Doctor not found or unavailable', 404);
+    }
+
+    const appointment = await Appointment.create({
+      patient: patient._id,
+      doctor: doctor._id,
+      appointmentTime: time,
+      reason: reason.trim(),
+      status: 'pending',
+    });
+    if (doctor.user) {
+      await Notification.create({
+        user: doctor.user,
+        title: 'New appointment request',
+        message: `${patient.name || 'A patient'} requested an appointment.`,
+        appointment: appointment._id,
+      });
+    }
+    return appointment;
+}
+
 async function listPatientAppointments(patientId) {
   if (!mongoose.isValidObjectId(patientId)) {
     throw createError('Invalid patient ID', 400);
   }
-
   return Appointment.find({ patient: patientId })
     .populate('doctor', 'name specialty')
     .sort({ appointmentTime: 1 })
@@ -98,7 +145,7 @@ async function cancelAppointment({ appointmentId, patientId }) {
     throw createError('Invalid appointment or patient ID', 400);
   }
 
-  const appointment = await Appointment.findOneAndUpdate(
+  let appointment = await Appointment.findOneAndUpdate(
     {
       _id: appointmentId,
       patient: patientId,
@@ -109,8 +156,20 @@ async function cancelAppointment({ appointmentId, patientId }) {
   );
 
   if (!appointment) {
+    appointment = await Appointment.findOneAndUpdate(
+      {
+        _id: appointmentId,
+        patient: patientId,
+        status: { $in: ['pending', 'approved'] },
+      },
+      { $set: { status: 'cancelled' } },
+      { new: true, runValidators: true },
+    );
+  }
+
+  if (!appointment) {
     throw createError(
-      'Confirmed appointment not found for this patient',
+      'Active appointment request not found for this patient',
       404,
     );
   }
@@ -175,6 +234,7 @@ async function rescheduleAppointment({
 
 module.exports = {
   bookAppointment,
+  requestAppointment,
   listPatientAppointments,
   cancelAppointment,
   rescheduleAppointment,

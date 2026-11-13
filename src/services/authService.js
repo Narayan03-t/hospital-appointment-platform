@@ -70,6 +70,12 @@ async function loginUser({ email, password }) {
     throw error;
   }
 
+  if (!user.active) {
+    const error = new Error('This account is deactivated');
+    error.statusCode = 403;
+    throw error;
+  }
+
   const secret = process.env.JWT_SECRET;
 
   if (!secret || secret.length < 32) {
@@ -91,6 +97,7 @@ async function loginUser({ email, password }) {
       name: user.name,
       email: user.email,
       role: user.role,
+      active: user.active,
     },
   };
 }

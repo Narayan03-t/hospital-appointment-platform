@@ -70,4 +70,32 @@ describe('API authentication and authorization', () => {
     expect(response.statusCode).toBe(400);
     expect(response.body.error).toBe('available must be true or false');
   });
+
+  test('appointment request rejects a missing token', async () => {
+    const response = await request(app)
+      .post('/api/appointments/request')
+      .send({});
+
+    expect(response.statusCode).toBe(401);
+  });
+
+  test('admin dashboard rejects patient and doctor roles', async () => {
+    const patientResponse = await request(app)
+      .get('/api/admin/stats')
+      .set('Authorization', `Bearer ${createToken('patient')}`);
+    const doctorResponse = await request(app)
+      .get('/api/admin/stats')
+      .set('Authorization', `Bearer ${createToken('doctor')}`);
+
+    expect(patientResponse.statusCode).toBe(403);
+    expect(doctorResponse.statusCode).toBe(403);
+  });
+
+  test('doctor management rejects patient role', async () => {
+    const response = await request(app)
+      .get('/api/doctor/appointments')
+      .set('Authorization', `Bearer ${createToken('patient')}`);
+
+    expect(response.statusCode).toBe(403);
+  });
 });

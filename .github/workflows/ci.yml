@@ -45,5 +45,11 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Build frontend
+        run: npm ci --prefix frontend && npm run build --prefix frontend
+
+      - name: Lint frontend
+        run: npm run lint --prefix frontend
+
       - name: Build Docker image
         run: docker build -t hospital-appointment-platform:${{ github.sha }} .

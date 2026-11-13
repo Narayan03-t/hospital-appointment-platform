@@ -18,11 +18,16 @@ const appointmentSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['confirmed', 'cancelled', 'completed'],
+      enum: ['pending', 'approved', 'confirmed', 'rejected', 'cancelled', 'completed'],
       default: 'confirmed',
       required: true,
     },
     reason: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+    },
+    rejectionReason: {
       type: String,
       trim: true,
       maxlength: 500,
@@ -36,7 +41,8 @@ appointmentSchema.index(
   { doctor: 1, appointmentTime: 1 },
   {
     unique: true,
-    partialFilterExpression: { status: 'confirmed' },
+    name: 'doctor_active_appointment_slot',
+    partialFilterExpression: { status: { $in: ['approved', 'confirmed'] } },
   },
 );
 

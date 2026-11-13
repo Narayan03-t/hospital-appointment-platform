@@ -8,6 +8,9 @@ const { connectDatabase } = require('./config/database');
 const authRoutes = require('./routes/authRoutes');
 const doctorRoutes = require('./routes/doctorRoutes');
 const appointmentRoutes = require('./routes/appointmentRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const doctorManagementRoutes = require('./routes/doctorManagementRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 const app = express();
 
@@ -64,6 +67,13 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/doctors', doctorRoutes);
 app.use('/api/appointments', appointmentRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/doctor', doctorManagementRoutes);
+app.use('/api/admin', adminRoutes);
+
+app.use((req, res) => {
+  res.status(404).json({ error: `Route not found: ${req.method} ${req.path}` });
+});
 
 app.use((err, req, res, next) => {
   if (res.headersSent) {

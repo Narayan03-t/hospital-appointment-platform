@@ -7,6 +7,7 @@ module.exports = [
       'node_modules/**',
       'coverage/**',
       'audit-report.json',
+      'frontend/**',
     ],
   },
   js.configs.recommended,

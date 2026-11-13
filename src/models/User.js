@@ -28,6 +28,11 @@ const userSchema = new mongoose.Schema(
       default: 'patient',
       required: true,
     },
+    active: {
+      type: Boolean,
+      default: true,
+      required: true,
+    },
   },
   { timestamps: true },
 );

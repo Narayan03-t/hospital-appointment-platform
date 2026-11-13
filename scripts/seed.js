@@ -16,9 +16,11 @@ async function seed() {
 
   const patientPassword = process.env.SEED_PATIENT_PASSWORD;
   const adminPassword = process.env.SEED_ADMIN_PASSWORD;
+  const doctorPassword = process.env.SEED_DOCTOR_PASSWORD;
 
   if (!patientPassword || !adminPassword ||
-      patientPassword.length < 12 || adminPassword.length < 12) {
+      patientPassword.length < 12 || adminPassword.length < 12 ||
+      (doctorPassword && doctorPassword.length < 12)) {
     throw new Error(
       'Set SEED_PATIENT_PASSWORD and SEED_ADMIN_PASSWORD to values of at least 12 characters.',
     );
@@ -45,6 +47,12 @@ async function seed() {
       password: adminPassword,
       role: 'admin',
     },
+    ...(doctorPassword ? [{
+      name: 'Dr. Alex Morgan',
+      email: 'doctor@example.test',
+      password: doctorPassword,
+      role: 'doctor',
+    }] : []),
   ];
 
   for (const entry of users) {
@@ -69,9 +77,12 @@ async function seed() {
   ];
 
   for (const doctor of doctors) {
+    const linkedUser = doctorPassword && doctor.name === 'Dr. Alex Morgan'
+      ? await User.findOne({ email: 'doctor@example.test' }).select('_id')
+      : null;
     await Doctor.findOneAndUpdate(
       { name: doctor.name, specialty: doctor.specialty },
-      { $set: { available: doctor.available } },
+      { $set: { available: doctor.available, ...(linkedUser ? { user: linkedUser._id } : {}) } },
       { upsert: true, runValidators: true, setDefaultsOnInsert: true },
     );
   }

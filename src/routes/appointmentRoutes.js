@@ -4,6 +4,7 @@ const {
   listPatientAppointments,
   cancelAppointment,
   rescheduleAppointment,
+  requestAppointment,
 } = require('../services/appointmentService');
 const {
   authenticate,
@@ -25,6 +26,23 @@ router.post('/', async (req, res, next) => {
 
     return res.status(201).json({
       message: 'Appointment booked successfully',
+      appointment,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post('/request', async (req, res, next) => {
+  try {
+    const appointment = await requestAppointment({
+      patientId: req.user.sub,
+      doctorId: req.body.doctorId,
+      appointmentTime: req.body.appointmentTime,
+      reason: req.body.reason,
+    });
+    return res.status(201).json({
+      message: 'Appointment request submitted',
       appointment,
     });
   } catch (error) {

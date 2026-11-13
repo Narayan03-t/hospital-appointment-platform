@@ -1,6 +1,6 @@
 # Hospital Appointment Platform
 
-A containerized doctor appointment scheduling API built as a DevOps and Cloud Engineering internship project for ALGIONS AI LABS PRIVATE LIMITED.
+A containerized doctor appointment scheduling API and responsive React/Vite CareFlow web application with separate patient, doctor, and hospital-admin dashboards, built as a DevOps and Cloud Engineering internship project for ALGIONS AI LABS PRIVATE LIMITED.
 
 The project demonstrates reproducible builds, Docker Compose orchestration, API authentication and authorization, appointment conflict prevention, automated CI checks, local HTTPS reverse proxying, structured request logs, and database backup and restoration.
 
@@ -13,6 +13,7 @@ The project demonstrates reproducible builds, Docker Compose orchestration, API 
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
+- [Role Workflows](#role-workflows)
 - [API Endpoints](#api-endpoints)
 - [Security](#security)
 - [Testing and CI](#testing-and-ci)
@@ -27,7 +28,7 @@ The project demonstrates reproducible builds, Docker Compose orchestration, API 
 ```text
                  Local client / browser
                           |
-                     HTTPS :443
+             HTTPS https://localhost:8443
                           |
                   Nginx reverse proxy
                           |
@@ -48,13 +49,14 @@ GitHub push / pull request
        Docker image build
 ```
 
-The API and database communicate over a dedicated Docker bridge network. MongoDB data is stored in a named volume. The API is exposed to local clients through Nginx over HTTPS; the MongoDB host port is bound to loopback.
+The React/Vite frontend is built into the Nginx image and served as a single-page application. Nginx serves the frontend, proxies `/api/*` and `/health` to Express, and terminates local HTTPS. The API and database communicate over a dedicated Docker bridge network. MongoDB data is stored in the named `mongodb_data` volume. The preserved local `compose.override.yaml` removes MongoDB host-port exposure when Docker Desktop cannot bind port `27018`; the API still reaches MongoDB at `mongodb:27017` inside Compose.
 
 The local HTTPS certificate is self-signed and intended for development and demonstration, not public production use.
 
 ## Technology Stack
 
 - Node.js 22 and Express
+- React 19 and Vite 7
 - MongoDB 8 and Mongoose
 - JWT authentication and role-based authorization
 - Jest for automated tests
@@ -72,7 +74,7 @@ Install the following:
 - OpenSSL for generating a local development certificate
 - Node.js 22 and npm if running the application or tests directly on the host
 
-Commands below assume a Bash-compatible terminal and execution from the repository root.
+Commands below assume execution from the repository root. Shell syntax is shown as Bash unless a PowerShell command is specifically shown.
 
 ## Quick Start
 
@@ -93,7 +95,7 @@ chmod 600 .env
 nano .env
 ```
 
-Set `JWT_SECRET` to a randomly generated secret of at least 32 characters. Keep the actual secret private. Never commit `.env`.
+Set `JWT_SECRET` to a randomly generated secret of at least 32 characters. Keep the actual secret private. Never commit `.env`. `SEED_DOCTOR_PASSWORD` is optional and creates the linked demo doctor account when using the seed script. Admin bootstrap variables are only used for the one-time command below.
 
 Generate a secret locally if needed:
 
@@ -129,11 +131,11 @@ Wait until MongoDB and the API report healthy. Nginx starts after the API health
 ### 5. Verify the service
 
 ```bash
-curl -k -i https://localhost/health
-curl -k -i https://localhost/api/doctors
+curl -k -i https://localhost:8443/health
+curl -k -i https://localhost:8443/api/doctors
 ```
 
-The health endpoint should return HTTP 200 when the database connection is healthy. The doctors endpoint returns synthetic doctor records.
+The health endpoint should return HTTP 200 when the database connection is healthy. The doctors endpoint returns synthetic doctor records and the browser UI is available at `https://localhost:8443`. Because the local certificate is self-signed, the browser will display a certificate warning; accept it only for this local demonstration.
 
 The `-k` option disables certificate verification for this local self-signed certificate only. Do not use this as a production TLS configuration.
 
@@ -147,10 +149,44 @@ The following variables are used by the application and Compose configuration:
 | `PORT` | API listening port; defaults to `3000` in the container |
 | `MONGODB_URI` | MongoDB connection URI |
 | `JWT_SECRET` | Secret used to sign and verify JWTs |
+| `BOOTSTRAP_ADMIN_NAME` | One-time admin display name |
+| `BOOTSTRAP_ADMIN_EMAIL` | One-time admin email |
+| `BOOTSTRAP_ADMIN_PASSWORD` | One-time admin password; never commit it |
 
 See `.env.example` for the starter configuration. Use a strong, private `JWT_SECRET` for every environment. Never store real secrets in Git.
 
-The optional seed script requires `SEED_PATIENT_PASSWORD` and `SEED_ADMIN_PASSWORD`, each at least 12 characters long. The script is restricted to a local MongoDB target. Set these values locally only if seeding is needed; do not publish them.
+The optional seed script requires `SEED_PATIENT_PASSWORD` and `SEED_ADMIN_PASSWORD`, each at least 12 characters long, and optionally `SEED_DOCTOR_PASSWORD`. It is restricted to a host MongoDB URI on `localhost` or `127.0.0.1` port `27018`; it is not the normal Compose startup path. Set these values locally only if seeding is needed; do not publish them.
+
+Create one admin account without modifying existing records:
+
+```bash
+$env:BOOTSTRAP_ADMIN_NAME="Hospital Administrator"
+$env:BOOTSTRAP_ADMIN_EMAIL="admin@example.test"
+$env:BOOTSTRAP_ADMIN_PASSWORD="use-a-private-12-character-password"
+docker compose exec -T -e BOOTSTRAP_ADMIN_NAME -e BOOTSTRAP_ADMIN_EMAIL -e BOOTSTRAP_ADMIN_PASSWORD api npm run bootstrap:admin
+```
+
+The command refuses to modify an existing email address. Remove the temporary shell variables after use and do not place real credentials in `.env.example`.
+
+## Role Workflows
+
+### Patient
+
+Public registration creates patient accounts only. After login, patients can search available doctors by name or specialty, submit a future appointment request with a reason, view their appointment list, and cancel pending, approved, or confirmed appointments. The request starts as `pending`.
+
+### Doctor
+
+An admin creates a linked doctor login and profile. A doctor can view requests assigned to that profile, configure future availability slots, and approve or reject pending requests. If explicit slots exist, approval is limited to those exact times. Approval changes the request to `approved`; rejection changes it to `rejected` and can store a rejection reason.
+
+### Hospital admin
+
+Admins use the protected admin dashboard to view counts, search doctors and patients, create or edit linked doctor profiles, activate or deactivate doctor/patient accounts, and filter appointment reports. Admins cannot make appointment decisions on behalf of doctors. Public registration cannot create admin accounts; use the one-time environment-driven bootstrap command above.
+
+### Notifications and status
+
+Submitting a request creates a persisted notification for the linked doctor. A doctor decision creates a persisted notification for the patient. Notifications expose read/unread state and can be marked individually or all at once. Appointment records persist the current status (`pending`, `approved`, `confirmed`, `rejected`, `cancelled`, or `completed`) and timestamps; the application does not maintain a separate status-transition history collection.
+
+Approvals and legacy confirmed bookings are protected by a MongoDB unique partial index on doctor and appointment time. If concurrent requests target the same active slot, one can succeed and the other receives HTTP 409 Conflict.
 
 ## API Endpoints
 
@@ -161,11 +197,26 @@ The optional seed script requires `SEED_PATIENT_PASSWORD` and `SEED_ADMIN_PASSWO
 | POST | `/api/auth/register` | Register a patient |
 | POST | `/api/auth/login` | Authenticate and obtain a JWT |
 | GET | `/api/doctors` | List doctors |
-| POST | `/api/doctors` | Create a doctor; admin role required |
-| POST | `/api/appointments` | Book an appointment; patient role required |
+| POST | `/api/doctors` | Create a basic doctor profile; admin role required |
+| POST | `/api/appointments` | Create a confirmed appointment; patient role required |
+| POST | `/api/appointments/request` | Submit a pending appointment request; patient role required |
 | GET | `/api/appointments/my` | List the authenticated patient's appointments |
-| PATCH | `/api/appointments/:id/cancel` | Cancel the patient's confirmed appointment |
+| PATCH | `/api/appointments/:id/cancel` | Cancel the patient's pending, approved, or confirmed appointment |
 | PATCH | `/api/appointments/:id/reschedule` | Reschedule the patient's confirmed appointment |
+| GET | `/api/doctor/appointments` | List appointments for the linked doctor account |
+| PATCH | `/api/doctor/appointments/:id/decision` | Approve or reject a pending request |
+| PUT | `/api/doctor/slots` | Replace the linked doctor's available slots |
+| GET | `/api/doctor/slots` | Read the linked doctor's available slots |
+| GET | `/api/notifications` | List the authenticated user's notifications |
+| PATCH | `/api/notifications/:id/read` | Mark one notification as read |
+| PATCH | `/api/notifications/read-all` | Mark all notifications as read |
+| GET | `/api/admin/stats` | Admin-only hospital counts |
+| GET | `/api/admin/doctors` | Admin-only doctor profiles and account status |
+| POST | `/api/admin/doctors` | Admin-only linked doctor account creation |
+| PATCH | `/api/admin/doctors/:id` | Admin-only doctor profile edit |
+| GET | `/api/admin/patients` | Admin-only patient records |
+| PATCH | `/api/admin/accounts/:id/status` | Admin-only doctor/patient activation |
+| GET | `/api/admin/appointments` | Admin-only appointment reporting/filtering by status, doctorId, patientId, from, and to |
 
 Protected endpoints require a bearer token:
 
@@ -173,9 +224,9 @@ Protected endpoints require a bearer token:
 Authorization: Bearer <JWT>
 ```
 
-Registration is restricted to the patient role. Doctor creation requires an authenticated admin. Appointment operations require an authenticated patient.
+Registration is restricted to the patient role. The admin dashboard's doctor-creation endpoint (`POST /api/admin/doctors`) creates both a doctor login and linked profile; the simpler `POST /api/doctors` endpoint creates only a doctor profile. Appointment operations require an authenticated patient. Doctor request management requires an active `doctor` user linked to a `Doctor` document through its `user` field. Admin APIs are independently protected by the `admin` role; admins can manage records and report on appointments but cannot make doctor decisions. Notifications are persisted in MongoDB and expose unread/read state.
 
-Booking and rescheduling validate identifiers and future appointment times. A unique partial MongoDB index on doctor and appointment time for confirmed appointments prevents conflicting confirmed bookings. Duplicate-key errors are mapped to HTTP 409 Conflict.
+Booking and rescheduling validate identifiers and future appointment times. A unique partial MongoDB index named `doctor_active_appointment_slot` on doctor and appointment time for `approved` and `confirmed` appointments prevents conflicting active bookings. Duplicate-key errors are mapped to HTTP 409 Conflict.
 
 ## Security
 
@@ -203,8 +254,21 @@ Run the checks locally:
 npm ci
 npm run lint
 npm test
-docker build -t hospital-appointment-platform:local .
+npm ci --prefix frontend
+npm run lint --prefix frontend
+npm run build --prefix frontend
+docker compose config --quiet
+docker compose build
 ```
+
+The preserved `compose.override.yaml` removes the MongoDB host port mapping for environments where Docker Desktop cannot bind `127.0.0.1:27018`. Keep that override in place for the current local setup; MongoDB remains reachable by the API on the internal Compose network and the named `mongodb_data` volume is preserved.
+
+The primary demo workflow is:
+
+1. Register/login as a patient at `https://localhost:8443`.
+2. Select a doctor and submit a future appointment request.
+3. Login with a linked doctor account and approve or reject it.
+4. Return to the patient account and open Notifications.
 
 The GitHub Actions workflow is `.github/workflows/ci.yml`. It runs on pushes and pull requests targeting `main`, installs dependencies, runs lint and tests, and builds a Docker image tagged with the commit SHA.
 
@@ -291,7 +355,7 @@ Verify recovery:
 
 ```bash
 docker compose ps
-curl -k -i https://localhost/health
+curl -k -i https://localhost:8443/health
 ```
 
 ### Recover a stopped API container
@@ -299,7 +363,7 @@ curl -k -i https://localhost/health
 ```bash
 docker compose up -d api
 docker compose ps
-curl -k -i https://localhost/health
+curl -k -i https://localhost:8443/health
 ```
 
 An explicit `docker compose kill api` is a manual stop action; it does not demonstrate automatic restart recovery under the `unless-stopped` policy. The documented recovery drill uses `docker compose up -d api` and verifies the health endpoint afterwards.
@@ -322,24 +386,25 @@ Before a rollback, record the current commit and image identifier, verify the ta
 
 | Component | Container port | Host exposure |
 |---|---:|---|
-| Nginx HTTPS | 443 | `127.0.0.1:443` |
+| Nginx HTTPS | 443 | `127.0.0.1:8443` |
 | API | 3000 | Internal Compose network only |
-| MongoDB | 27017 | `127.0.0.1:27018` |
+| MongoDB | 27017 | Internal Compose network only; the override removes host exposure |
 
 The API is reached through Nginx. MongoDB is bound to loopback and should not be exposed directly to the public internet.
 
-HTTP port 80 is not configured; requests should use `https://localhost` in the current local setup.
+HTTP port 80 is not configured; requests should use `https://localhost:8443` in the current local setup.
 
 ## Known Limitations
 
 - The HTTPS certificate is self-signed and suitable only for local demonstration.
 - The CI workflow builds but does not publish a versioned image to a registry.
-- The deployment currently runs locally using Docker Compose; a public cloud deployment has not been demonstrated by this setup.
+- The deployment currently runs locally using Docker Compose at `https://localhost:8443`; a public cloud deployment has not been demonstrated by this setup.
 - Monitoring dashboards and metrics export have not been verified as implemented.
 - Backup and restoration have been tested locally; this is not a substitute for off-host, encrypted, retention-managed backups.
-- Appointment conflict protection is implemented through a MongoDB unique partial index; production behavior should also be tested under concurrent requests against a real running database.
+- Appointment conflict protection is implemented through a MongoDB unique partial index covering approved and confirmed appointments; production behavior should also be tested under concurrent requests against a real running database.
+- The legacy confirmed-slot index is preserved and the expanded approved/confirmed index uses a new name, avoiding destructive index migration on existing volumes.
 - The service uses synthetic records only. Do not add real patient data or other sensitive information.
-- Features not verified in the repository or in the current test evidence must not be described as complete.
+- Email notifications via SMTP and clinical record integrations are not implemented; persisted in-app notifications are the supported notification channel.
 
 ## Repository Structure
 
@@ -352,8 +417,12 @@ HTTP port 80 is not configured; requests should use `https://localhost` in the c
 │   ├── routes/
 │   ├── services/
 │   └── server.js
+├── frontend/
+│   ├── src/
+│   └── package.json
 ├── tests/
 ├── scripts/seed.js
+├── scripts/bootstrapAdmin.js
 ├── nginx/
 │   ├── conf.d/hospital.conf
 │   └── certs/                 # local-only, ignored by Git
