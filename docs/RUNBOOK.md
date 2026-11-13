@@ -186,16 +186,14 @@ Database changes may not be compatible with older application versions. Never as
 
 ## 11. Evidence Checklist
 
-Before submission, collect:
-
+- [x] Lint and automated test results
+- [x] Docker Compose service status and HTTPS health response
+- [x] Appointment conflict and authorization test results
+- [x] Backup integrity check and checksum
+- [x] Restore verification and collection counts
+- [x] Failure and recovery demonstration
+- [x] Final architecture diagram and README
 - [ ] Successful GitHub Actions run for the submitted commit
-- [ ] Lint and automated test results
-- [ ] Docker Compose service status and HTTPS health response
-- [ ] Appointment conflict and authorization test results
-- [ ] Backup integrity check and checksum
-- [ ] Restore verification and collection counts
-- [ ] Failure and recovery demonstration
-- [ ] Final architecture diagram and README
 - [ ] Three-to-five-minute demonstration video
 - [ ] Verified repository, workflow, and evidence links
 
